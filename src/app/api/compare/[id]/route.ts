@@ -112,7 +112,7 @@ export async function POST(
           }
 
           // Add users with edit permission
-          website.shares.forEach(share => {
+          website.shares.forEach((share: { user: { email: string; name: string | null } }) => {
             if (share.user.email) {
               recipients.push({
                 email: share.user.email,

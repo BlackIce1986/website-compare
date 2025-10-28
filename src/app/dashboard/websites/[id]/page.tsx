@@ -12,6 +12,7 @@ interface Website {
   id: string;
   name: string;
   url: string;
+  authToken?: string;
 }
 
 interface Page {

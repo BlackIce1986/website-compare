@@ -6,22 +6,6 @@ import { prisma } from './prisma';
 import { ComparisonStatus } from './types';
 import { emailService } from './email-service';
 
-// Add type declaration for pngjs
-declare module 'pngjs' {
-  export namespace PNG {
-    namespace sync {
-      function read(buffer: Buffer): PNG;
-      function write(png: PNG): Buffer;
-    }
-  }
-  export class PNG {
-    constructor(options?: { width: number; height: number });
-    width: number;
-    height: number;
-    data: Buffer;
-  }
-}
-
 // Ensure screenshots directory exists
 const SCREENSHOTS_DIR = path.join(process.cwd(), 'public', 'screenshots');
 if (!fs.existsSync(SCREENSHOTS_DIR)) {
@@ -57,7 +41,7 @@ export async function takeScreenshot(url: string): Promise<string> {
     
     // Take screenshot with fixed dimensions for consistent comparison
     await page.screenshot({ 
-      path: screenshotPath, 
+      path: screenshotPath as `${string}.png`, 
       fullPage: true // Take screenshot of the entire page
     });
     // Return the relative path for storage in the database

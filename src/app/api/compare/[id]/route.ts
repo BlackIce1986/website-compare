@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createComparison } from '@/lib/puppeteer';
-import { emailService } from '@/lib/email-service';
+import { emailService, EmailRecipient } from '@/lib/email-service';
 
 // POST /api/websites/[id]/compare-all - Create comparisons for all pages of a website
 export async function POST(
@@ -101,7 +101,7 @@ export async function POST(
       if (errors.length > 0 && website) {
         try {
           // Collect recipients (website owner + users with edit permission)
-          const recipients = [];
+          const recipients: EmailRecipient[] = [];
           
           // Add website owner
           if (website.user.email) {

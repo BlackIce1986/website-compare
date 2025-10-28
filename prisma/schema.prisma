@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String              @id @default(cuid())
+  name                String?
+  email               String              @unique
+  password            String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  websites            Website[]
+  receivedInvitations WebsiteInvitation[] @relation("InvitationReceiver")
+  sentInvitations     WebsiteInvitation[] @relation("InvitationSender")
+  sharedWebsites      WebsiteShare[]      @relation("SharedWithUser")
+}
+
+model Website {
+  id          String              @id @default(cuid())
+  name        String
+  url         String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  userId      String
+  pages       Page[]
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitations WebsiteInvitation[]
+  shares      WebsiteShare[]
+  authToken String?
+}
+
+model Page {
+  id          String       @id @default(cuid())
+  name        String
+  path        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  websiteId   String
+  comparisons Comparison[]
+  website     Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+}
+
+model Comparison {
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+  pageId             String
+  baselineScreenshot String?
+  currentScreenshot  String?
+  diffScreenshot     String?
+  diffPercentage     Float?
+  status             String   @default("pending")
+  page               Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+model WebsiteShare {
+  id         String     @id @default(cuid())
+  websiteId  String
+  userId     String
+  createdAt  DateTime   @default(now())
+  permission Permission @default(VIEW)
+  user       User       @relation("SharedWithUser", fields: [userId], references: [id], onDelete: Cascade)
+  website    Website    @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, userId])
+}
+
+model WebsiteInvitation {
+  id           String     @id @default(cuid())
+  websiteId    String
+  inviterId    String
+  inviteeId    String?
+  inviteeEmail String?
+  token        String     @unique
+  status       String     @default("pending")
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+  acceptedAt   DateTime?
+  permission   Permission @default(VIEW)
+  invitee      User?      @relation("InvitationReceiver", fields: [inviteeId], references: [id], onDelete: Cascade)
+  inviter      User       @relation("InvitationSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  website      Website    @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+}
+
+enum Permission {
+  VIEW
+  EDIT
+}

@@ -1,0 +1,44 @@
+services:
+  website-compare-app:
+    container_name: website-compare
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3131:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@website-compare-db:5432/website_compare_dev
+      - NEXTAUTH_SECRET=development_secret_key
+      - NEXTAUTH_URL=http://website-compare.test:3001
+    depends_on:
+      - website-compare-db
+    networks:
+      - website-compare-network
+      - shared-network
+    extra_hosts:
+      - "website-compare.test:host-gateway"
+
+  website-compare-db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=website_compare_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - website-compare-network
+      - shared-network
+networks:
+  website-compare-network:
+    driver: bridge
+  shared-network:
+    external: true
+volumes:
+  postgres_data:

@@ -8,7 +8,6 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db:5432/website_compare_prod
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
     depends_on:
@@ -32,7 +31,7 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "80:80"
+      - "808:80"
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d

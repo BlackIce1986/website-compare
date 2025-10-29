@@ -12,7 +12,7 @@ RUN npm install
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY prisma ./prisma
+COPY ./prisma /app/prisma
 COPY . .
 
 # Next.js collects completely anonymous telemetry data about general usage.

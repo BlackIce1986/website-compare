@@ -317,7 +317,7 @@ export async function createComparison(pageId: string): Promise<any> {
             }
 
             // Add users with edit permission
-            page.website.shares.forEach(share => {
+            page.website.shares.forEach((share: { user: { email: string; name: string | null } })  => {
               if (share.user.email) {
                 recipients.push({
                   email: share.user.email,

@@ -10,6 +10,8 @@ services:
       - NODE_ENV=production
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
+    volumes:
+      - app_public:/app/public
     depends_on:
       - db
     networks:
@@ -36,7 +38,7 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
-      - ./nginx/www:/var/www/html
+      - app_public:/var/www/html
     depends_on:
       - app
     networks:
@@ -48,3 +50,4 @@ networks:
 
 volumes:
   postgres_data:
+  app_public:

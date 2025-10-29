@@ -1,5 +1,6 @@
 services:
-  app:
+  website-compare-app:
+    container_name: website-compare-app
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,12 +13,14 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL}
     volumes:
       - app_public:/app/public
+      - app_next_static:/app/.next/static
+      - ./prisma:/app/prisma
     depends_on:
-      - db
+      - website-compare-db
     networks:
       - website-compare-network
 
-  db:
+  website-compare-db:
     image: postgres:15-alpine
     restart: always
     environment:
@@ -39,8 +42,9 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - app_public:/var/www/html
+      - app_next_static:/var/www/html/_next/static
     depends_on:
-      - app
+      - website-compare-app
     networks:
       - website-compare-network
 
@@ -51,3 +55,4 @@ networks:
 volumes:
   postgres_data:
   app_public:
+  app_next_static:

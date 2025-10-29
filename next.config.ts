@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   experimental: {
     reactCompiler: true,
   },
+  images: {
+    unoptimized: true, // Disable image optimization for standalone mode
+  },
 };
 
 export default nextConfig;

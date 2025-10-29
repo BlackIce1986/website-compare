@@ -35,6 +35,23 @@ services:
     networks:
       - website-compare-network
       - shared-network
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "808:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./public:/var/www/html
+      - ./.next/static:/var/www/html/_next/static
+    depends_on:
+      - website-compare-app
+    networks:
+      - website-compare-network
+      - shared-network
 networks:
   website-compare-network:
     driver: bridge

@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json ./
-RUN npm install --ignore-scripts
+RUN npm install
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -21,7 +21,6 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
 # Build the application
-RUN rm -rf ./public/_next || true
 RUN npm run build
 
 # Production image, copy all the files and run next

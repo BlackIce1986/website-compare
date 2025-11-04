@@ -44,7 +44,7 @@ export async function POST(
   } catch (error) {
     console.error('Error creating comparison:', error);
     return NextResponse.json(
-      { error: 'Failed to create comparison' },
+      { error: 'Failed to create comparison', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

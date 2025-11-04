@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { Permission, InvitationStatus } from '@/lib/types';
+import { sendEmail } from '@/lib/email-service';
 import crypto from 'crypto';
 
 // POST /api/websites/[id]/invitations - Create a new invitation
@@ -120,6 +121,18 @@ export async function POST(
 
     // Generate invitation URL
     const invitationUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/invitations/${token}`;
+
+    //send e-mail to user
+    await sendEmail({
+      to: email,
+      subject: 'Website Invitation',
+      html: `
+        <p>You have been invited to share a website with ${session.user.name}.</p>
+        <p>Permission level: ${permission}</p>
+        <p>Click the link below to accept the invitation:</p>
+        <a href="${invitationUrl}">${invitationUrl}</a>
+      `,
+    });
 
     return NextResponse.json({
       invitation: {

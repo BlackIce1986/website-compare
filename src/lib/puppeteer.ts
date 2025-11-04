@@ -12,6 +12,24 @@ if (!fs.existsSync(SCREENSHOTS_DIR)) {
   fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 }
 
+// Generate month-year folder name (e.g., 'jan-2024')
+const generateMonthYearFolder = (date: Date = new Date()): string => {
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+                  'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${month}-${year}`;
+};
+
+// Ensure month-year subfolder exists
+const ensureMonthYearFolder = (monthYear: string): string => {
+  const monthYearDir = path.join(SCREENSHOTS_DIR, monthYear);
+  if (!fs.existsSync(monthYearDir)) {
+    fs.mkdirSync(monthYearDir, { recursive: true });
+  }
+  return monthYearDir;
+};
+
 // Generate a unique filename based on URL and timestamp
 const generateFilename = (url: string): string => {
   const hash = createHash('md5').update(url).digest('hex');
@@ -35,9 +53,13 @@ export async function takeScreenshot(url: string): Promise<string> {
     // Navigate to the URL
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
     
+    // Generate month-year folder and ensure it exists
+    const monthYear = generateMonthYearFolder();
+    const monthYearDir = ensureMonthYearFolder(monthYear);
+    
     // Generate filename and path
     const filename = generateFilename(url);
-    const screenshotPath = path.join(SCREENSHOTS_DIR, filename);
+    const screenshotPath = path.join(monthYearDir, filename);
     
     // Take screenshot with fixed dimensions for consistent comparison
     await page.screenshot({ 
@@ -45,7 +67,7 @@ export async function takeScreenshot(url: string): Promise<string> {
       fullPage: true // Take screenshot of the entire page
     });
     // Return the relative path for storage in the database
-    return `/screenshots/${filename}`;
+    return `/screenshots/${monthYear}/${filename}`;
   } catch (error) {
     console.error('Error taking screenshot:', error);
     throw error;
@@ -145,13 +167,17 @@ export async function compareScreenshots(
   // Generate a filename for the diff image
   const timestamp = Date.now();
   const diffFilename = `diff-${timestamp}.png`;
-  const diffPath = path.join(SCREENSHOTS_DIR, diffFilename);
+  
+  // Generate month-year folder and ensure it exists for diff image
+  const monthYear = generateMonthYearFolder();
+  const monthYearDir = ensureMonthYearFolder(monthYear);
+  const diffPath = path.join(monthYearDir, diffFilename);
   
   // Write the diff image to disk
   fs.writeFileSync(diffPath, PNG.sync.write(diffImg));
   
   return {
-    diffPath: `/screenshots/${diffFilename}`,
+    diffPath: `/screenshots/${monthYear}/${diffFilename}`,
     diffPercentage,
   };
 }

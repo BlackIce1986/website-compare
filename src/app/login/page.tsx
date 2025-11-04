@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const registered = searchParams.get('registered');
+  const registered = searchParams?.get('registered');
   
   const [formData, setFormData] = useState({
     email: '',

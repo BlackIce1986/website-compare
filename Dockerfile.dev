@@ -18,8 +18,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # Copy package.json only (ignore lockfile for dev rebuilds)
 COPY package.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies without running lifecycle scripts (skip postinstall)
+RUN npm install --ignore-scripts
 
 # Copy the rest of the application
 COPY . .

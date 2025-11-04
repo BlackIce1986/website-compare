@@ -1,6 +1,6 @@
 services:
   website-compare-app:
-    container_name: website-compare
+    container_name: website-compare-app
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -14,6 +14,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@website-compare-db:5432/website_compare_dev
       - NEXTAUTH_SECRET=development_secret_key
       - NEXTAUTH_URL=http://website-compare.test:3001
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
     depends_on:
       - website-compare-db
     networks:
@@ -40,8 +41,7 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "808:80"
-      - "443:443"
+      - "80:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl

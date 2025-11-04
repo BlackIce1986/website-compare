@@ -26,7 +26,9 @@
       "@/*": [
         "./src/*"
       ]
-    }
+    },
+    "allowImportingTsExtensions": false,
+    "noResolve": false
   },
   "include": [
     "next-env.d.ts",
@@ -37,6 +39,7 @@
     "**/*.mts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next/types/validator.ts"
   ]
 }

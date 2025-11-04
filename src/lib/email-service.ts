@@ -86,7 +86,7 @@ class EmailService {
   /**
    * Send a generic email
    */
-  private async sendEmail(
+  async sendEmail(
     recipients: EmailRecipient[],
     subject: string,
     htmlContent: string,
@@ -366,6 +366,24 @@ This is an automated notification from Website Compare.
 
 // Export a singleton instance
 export const emailService = new EmailService();
+
+// Simple wrapper function for easier usage in routes
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}): Promise<void> {
+  const recipients = [{ email: to }];
+  const textContent = text || html.replace(/<[^>]*>/g, ''); // Strip HTML tags if no text provided
+  
+  await emailService.sendEmail(recipients, subject, html, textContent);
+}
 
 // Export types for use in other modules
 export type { ComparisonFailureData, BulkComparisonFailureData, EmailRecipient };

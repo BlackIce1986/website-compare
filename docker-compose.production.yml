@@ -42,7 +42,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
       - app_public:/var/www/html
-      # - app_next_static:/var/www/html/_next/static
+      - app_next_static:/var/www/html/_next/static
     depends_on:
       - website-compare-app
     networks:

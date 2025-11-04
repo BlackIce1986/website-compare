@@ -14,7 +14,7 @@ services:
     volumes:
       - app_public:/app/public
       - app_next_static:/app/.next/static
-      - ./prisma:/app/prisma
+      # - ./prisma:/app/prisma
     depends_on:
       - website-compare-db
     networks:

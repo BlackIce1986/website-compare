@@ -4,6 +4,7 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
+RUN rm -rf ./public/_next || true
 # Install dependencies based on the preferred package manager
 COPY package.json ./
 RUN npm install

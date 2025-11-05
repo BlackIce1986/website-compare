@@ -22,9 +22,9 @@ export async function POST(
     // if (!session?.user) {
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
-    
+
     const { id: websiteId } = await params;
-    
+
     // // Verify website access
     // const hasAccess = await verifyWebsiteAccess(websiteId, session.user.id);
     // if (!hasAccess) {
@@ -39,7 +39,7 @@ export async function POST(
     if (websiteAuthToken !== authToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     // Get all pages for the website
     const pages = await prisma.page.findMany({
       where: {
@@ -49,18 +49,18 @@ export async function POST(
         createdAt: 'desc',
       },
     });
-    
+
     if (pages.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'No pages found for this website',
         results: []
       }, { status: 404 });
     }
-    
+
     // Create comparisons for all pages
     const results = [];
     const errors = [];
-    
+
     // Get website details for email notifications
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
@@ -72,19 +72,31 @@ export async function POST(
         user: true
       }
     });
-    
+
     //run code async in separate process and return json response before finishing
     (async () => {
       for (const page of pages) {
         try {
           const result = await createComparison(page.id);
-          results.push({
-            pageId: page.id,
-            pageName: page.name,
-            pagePath: page.path,
-            success: true,
-            comparison: result,
-          });
+          console.log(result, page);
+          if (parseFloat(result.diffPercentage) > parseFloat(page.minDeviation)) {
+            console.log(`Page ${page.id} failed. Result: ${result}, minDeviation: ${page.minDeviation}`);
+            errors.push({
+              pageId: page.id,
+              pageName: page.name,
+              pagePath: page.path,
+              success: false
+            });
+          } else {
+            console.log(`Page ${page.id} passed. Result: ${result}`);
+            results.push({
+              pageId: page.id,
+              pageName: page.name,
+              pagePath: page.path,
+              success: true,
+              comparison: result,
+            });
+          }
         } catch (error) {
           console.error(`Error creating comparison for page ${page.id}:`, error);
           errors.push({
@@ -99,10 +111,11 @@ export async function POST(
 
       // Send bulk failure notification if there were any errors
       if (errors.length > 0 && website) {
+        console.log('Sending bulk failure notification email...', errors.length, 'errors');
         try {
           // Collect recipients (website owner + users with edit permission)
           const recipients: EmailRecipient[] = [];
-          
+
           // Add website owner
           if (website.user.email) {
             recipients.push({
@@ -141,12 +154,12 @@ export async function POST(
         }
       }
     })();
-    
-    
+
+
     return NextResponse.json({
       message: `Processing ${pages.length} pages`,
     });
-    
+
   } catch (error) {
     console.error('Error in bulk comparison:', error);
     return NextResponse.json(

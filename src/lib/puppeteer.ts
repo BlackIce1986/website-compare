@@ -14,7 +14,7 @@ if (!fs.existsSync(SCREENSHOTS_DIR)) {
 
 // Generate month-year folder name (e.g., 'jan-2024')
 const generateMonthYearFolder = (date: Date = new Date()): string => {
-  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
                   'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   const month = months[date.getMonth()];
   const year = date.getFullYear();
@@ -40,30 +40,31 @@ const generateFilename = (url: string): string => {
 // Take a screenshot of a webpage
 export async function takeScreenshot(url: string): Promise<string> {
   const browser = await puppeteer.launch({
-    headless: true, // Use boolean instead of 'new'
+    protocolTimeout: 160000,
+    headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-  
+
   try {
     const page = await browser.newPage();
-    
+
     // Set viewport size for consistent screenshots
     await page.setViewport({ width: 1280, height: 800 });
-    
+
     // Navigate to the URL
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-    
+
     // Generate month-year folder and ensure it exists
     const monthYear = generateMonthYearFolder();
     const monthYearDir = ensureMonthYearFolder(monthYear);
-    
+
     // Generate filename and path
     const filename = generateFilename(url);
     const screenshotPath = path.join(monthYearDir, filename);
-    
+
     // Take screenshot with fixed dimensions for consistent comparison
-    await page.screenshot({ 
-      path: screenshotPath as `${string}.png`, 
+    await page.screenshot({
+      path: screenshotPath as `${string}.png`,
       fullPage: true // Take screenshot of the entire page
     });
     // Return the relative path for storage in the database
@@ -83,47 +84,47 @@ export async function compareScreenshots(
 ): Promise<{ diffPath: string; diffPercentage: number }> {
   const { default: pixelmatch } = await import('pixelmatch');
   const { PNG } = await import('pngjs');
-  
+
   // Read the images
   const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
   const currentPath = path.join(process.cwd(), 'public', currentScreenshot);
-  
+
   // Check if files exist before reading
   if (!fs.existsSync(baselinePath)) {
     throw new Error(`Baseline screenshot not found: ${baselinePath}`);
   }
-  
+
   if (!fs.existsSync(currentPath)) {
     throw new Error(`Current screenshot not found: ${currentPath}`);
   }
-  
+
   const baselineData = fs.readFileSync(baselinePath);
   const currentData = fs.readFileSync(currentPath);
-  
+
   // Validate that we have data
   if (!baselineData || baselineData.length === 0) {
     throw new Error(`Baseline screenshot is empty or corrupted: ${baselinePath}`);
   }
-  
+
   if (!currentData || currentData.length === 0) {
     throw new Error(`Current screenshot is empty or corrupted: ${currentPath}`);
   }
-  
+
   const baselineImg = PNG.sync.read(baselineData);
   const currentImg = PNG.sync.read(currentData);
-  
+
   // Handle different image sizes by using the larger dimensions
   const width = Math.max(baselineImg.width, currentImg.width);
   const height = Math.max(baselineImg.height, currentImg.height);
-  
+
   // Create normalized images with the same dimensions
   const normalizedBaseline = new PNG({ width, height });
   const normalizedCurrent = new PNG({ width, height });
-  
+
   // Fill with white background (255, 255, 255, 255 for RGBA)
   normalizedBaseline.data.fill(255);
   normalizedCurrent.data.fill(255);
-  
+
   // Copy baseline image data
   for (let y = 0; y < baselineImg.height; y++) {
     for (let x = 0; x < baselineImg.width; x++) {
@@ -135,7 +136,7 @@ export async function compareScreenshots(
       normalizedBaseline.data[dstIdx + 3] = baselineImg.data[srcIdx + 3]; // A
     }
   }
-  
+
   // Copy current image data
   for (let y = 0; y < currentImg.height; y++) {
     for (let x = 0; x < currentImg.width; x++) {
@@ -147,10 +148,10 @@ export async function compareScreenshots(
       normalizedCurrent.data[dstIdx + 3] = currentImg.data[srcIdx + 3]; // A
     }
   }
-  
+
   // Create a new PNG for the diff
   const diffImg = new PNG({ width, height });
-  
+
   // Compare the images
   const numDiffPixels = pixelmatch(
     normalizedBaseline.data,
@@ -160,22 +161,22 @@ export async function compareScreenshots(
     height,
     { threshold: 0.1 }
   );
-  
+
   // Calculate the percentage difference
   const diffPercentage = (numDiffPixels / (width * height)) * 100;
-  
+
   // Generate a filename for the diff image
   const timestamp = Date.now();
   const diffFilename = `diff-${timestamp}.png`;
-  
+
   // Generate month-year folder and ensure it exists for diff image
   const monthYear = generateMonthYearFolder();
   const monthYearDir = ensureMonthYearFolder(monthYear);
   const diffPath = path.join(monthYearDir, diffFilename);
-  
+
   // Write the diff image to disk
   fs.writeFileSync(diffPath, PNG.sync.write(diffImg));
-  
+
   return {
     diffPath: `/screenshots/${monthYear}/${diffFilename}`,
     diffPercentage,
@@ -185,21 +186,21 @@ export async function compareScreenshots(
 // Create a new comparison for a page
 export async function createComparison(pageId: string): Promise<any> {
   let comparison: any = null;
-  
+
   try {
     // Get the page and its associated website
     const page = await prisma.page.findUnique({
       where: { id: pageId },
       include: { website: true },
     });
-    
+
     if (!page) {
       throw new Error('Page not found');
     }
-    
+
     // Construct the full URL
     const url = new URL(page.path, page.website.url).toString();
-    
+
     // Create a new comparison record
     comparison = await prisma.comparison.create({
       data: {
@@ -207,10 +208,10 @@ export async function createComparison(pageId: string): Promise<any> {
         status: 'pending',
       },
     });
-    
+
     // Take a screenshot
     const screenshotPath = await takeScreenshot(url);
-    
+
     // Check if this is the first comparison for this page
     const previousComparisons = await prisma.comparison.findMany({
       where: {
@@ -221,7 +222,7 @@ export async function createComparison(pageId: string): Promise<any> {
       orderBy: { createdAt: 'desc' },
       take: 1,
     });
-    
+
     if (previousComparisons.length === 0) {
       // This is the first comparison, so just save the screenshot as baseline
       await prisma.comparison.update({
@@ -232,7 +233,7 @@ export async function createComparison(pageId: string): Promise<any> {
           status: ComparisonStatus.COMPLETED,
         },
       });
-      
+
       return {
         id: comparison.id,
         status: ComparisonStatus.COMPLETED,
@@ -241,11 +242,11 @@ export async function createComparison(pageId: string): Promise<any> {
     } else {
       // Compare with the previous baseline
       const previousComparison = previousComparisons[0];
-      
+
       // Check if baseline screenshot has different dimensions (from old fullPage screenshots)
       // If so, retake the baseline with new dimensions
       let baselineScreenshot = previousComparison.baselineScreenshot!;
-      
+
       try {
         // Try to read the baseline image to check its dimensions
         const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
@@ -253,17 +254,17 @@ export async function createComparison(pageId: string): Promise<any> {
           const { PNG } = await import('pngjs');
           const baselineData = fs.readFileSync(baselinePath);
           const baselineImg = PNG.sync.read(baselineData);
-          
+
           // If baseline has different dimensions, retake it
           if (baselineImg.width !== 1280 || baselineImg.height !== 800) {
             console.log(`Baseline screenshot has old dimensions (${baselineImg.width}x${baselineImg.height}), retaking with new dimensions...`);
-            
+
             // Delete the old baseline file
             fs.unlinkSync(baselinePath);
-            
+
             // Take a new screenshot with correct dimensions
             baselineScreenshot = await takeScreenshot(url);
-            
+
             // Update the previous comparison's baseline
             await prisma.comparison.update({
               where: { id: previousComparison.id },
@@ -275,12 +276,12 @@ export async function createComparison(pageId: string): Promise<any> {
         console.log('Error checking baseline dimensions, retaking screenshot:', error);
         baselineScreenshot = await takeScreenshot(url);
       }
-      
+
       const { diffPath, diffPercentage } = await compareScreenshots(
         baselineScreenshot,
         screenshotPath
       );
-      
+
       // Update the comparison with results
       await prisma.comparison.update({
         where: { id: comparison.id },
@@ -292,7 +293,7 @@ export async function createComparison(pageId: string): Promise<any> {
           status: ComparisonStatus.COMPLETED,
         },
       });
-      
+
       return {
         id: comparison.id,
         status: ComparisonStatus.COMPLETED,
@@ -302,7 +303,7 @@ export async function createComparison(pageId: string): Promise<any> {
     }
   } catch (error) {
     console.error('Error creating comparison:', error);
-    
+
     // Update the comparison status to failed (only if comparison was created)
     if (comparison && comparison.id) {
       try {
@@ -317,23 +318,23 @@ export async function createComparison(pageId: string): Promise<any> {
         try {
           const page = await prisma.page.findUnique({
             where: { id: pageId },
-            include: { 
-              website: { 
-                include: { 
-                  shares: { 
+            include: {
+              website: {
+                include: {
+                  shares: {
                     where: { permission: 'EDIT' },
                     include: { user: true }
                   },
                   user: true
-                } 
-              } 
+                }
+              }
             },
           });
 
           if (page) {
             // Collect recipients (website owner + users with edit permission)
             const recipients = [];
-            
+
             // Add website owner
             if (page.website.user.email) {
               recipients.push({
@@ -373,7 +374,7 @@ export async function createComparison(pageId: string): Promise<any> {
         console.error('Error updating comparison status to failed:', updateError);
       }
     }
-    
+
     throw error;
   }
 }

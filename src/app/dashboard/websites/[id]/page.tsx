@@ -19,6 +19,7 @@ interface Page {
   id: string;
   name: string;
   path: string;
+  minDeviation?: number;
   websiteId: string;
   createdAt: string;
 }
@@ -37,6 +38,12 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
   const [newPagePath, setNewPagePath] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Edit page state
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPath, setEditPath] = useState('');
+  const [editMinDeviation, setEditMinDeviation] = useState<string>('0');
+  const [updating, setUpdating] = useState(false);
 
   // Share modal state
   const [showShareModal, setShowShareModal] = useState(false);
@@ -116,6 +123,56 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
       setFormError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEditForm = (page: Page) => {
+    setEditingPageId(page.id);
+    setEditName(page.name);
+    setEditPath(page.path);
+    setEditMinDeviation(
+      page.minDeviation !== undefined && page.minDeviation !== null
+        ? String(page.minDeviation)
+        : '0'
+    );
+    setFormError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingPageId(null);
+    setEditName('');
+    setEditPath('');
+    setEditMinDeviation('0');
+    setFormError(null);
+  };
+
+  const handleUpdatePage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPageId) return;
+    setUpdating(true);
+    setFormError(null);
+    try {
+      const payload: any = {};
+      if (editName) payload.name = editName;
+      if (editPath) payload.path = editPath;
+      if (editMinDeviation !== '') payload.minDeviation = Number(editMinDeviation);
+
+      const res = await fetch(`/api/websites/${resolvedParams.id}/pages/${editingPageId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to update page');
+      }
+      const updated = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+      cancelEdit();
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to update page');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -255,11 +312,17 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">{page.name}</h3>
                       <p className="text-sm text-gray-500">{page.path}</p>
+                      {typeof page.minDeviation !== 'undefined' && (
+                        <p className="text-xs text-gray-400">Min deviation: {String(page.minDeviation)}</p>
+                      )}
                     </div>
                     <div className="flex space-x-2">
                       <Link href={`/dashboard/websites/${resolvedParams.id}/pages/${page.id}`}>
                         <Button variant="outline">View Comparisons</Button>
                       </Link>
+                      <Button variant="outline" onClick={() => openEditForm(page)}>
+                        Edit
+                      </Button>
                       <Button
                         variant="danger"
                         onClick={() => handleDeletePage(page.id)}
@@ -268,6 +331,72 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
                       </Button>
                     </div>
                   </div>
+                  {editingPageId === page.id && (
+                    <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <h4 className="text-md font-semibold mb-3">Edit Page</h4>
+                      <form onSubmit={handleUpdatePage} className="space-y-4">
+                        <div>
+                          <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 mb-1">
+                            Page Name
+                          </label>
+                          <Input
+                            id="edit-name"
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Home Page"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="edit-path" className="block text-sm font-medium text-gray-700 mb-1">
+                            Page URL Path
+                          </label>
+                          <Input
+                            id="edit-path"
+                            type="text"
+                            value={editPath}
+                            onChange={(e) => setEditPath(e.target.value)}
+                            placeholder="/about"
+                            required
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            Path relative to website URL (e.g., /about, /products)
+                          </p>
+                        </div>
+                        <div>
+                          <label htmlFor="edit-mindev" className="block text-sm font-medium text-gray-700 mb-1">
+                            Minimum Deviation Threshold
+                          </label>
+                          <Input
+                            id="edit-mindev"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editMinDeviation}
+                            onChange={(e) => setEditMinDeviation(e.target.value)}
+                            placeholder="0"
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            Differences below this percentage are considered insignificant.
+                          </p>
+                        </div>
+                        {formError && (
+                          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                            {formError}
+                          </div>
+                        )}
+                        <div className="flex space-x-2">
+                          <Button type="button" variant="outline" onClick={cancelEdit}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={updating}>
+                            {updating ? 'Saving...' : 'Save Changes'}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

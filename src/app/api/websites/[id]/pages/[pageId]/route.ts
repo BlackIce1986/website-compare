@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -87,14 +88,33 @@ export async function PUT(
     }
     
     // Get request body
-    const { name, path } = await request.json();
+    const { name, path, minDeviation } = await request.json();
     
     // Validate input
-    if (!name && !path) {
+    if (!name && !path && (minDeviation === undefined || minDeviation === null)) {
       return NextResponse.json(
         { error: 'At least one field to update is required' },
         { status: 400 }
       );
+    }
+
+    // Validate minDeviation if provided
+    let minDeviationDecimal: Prisma.Decimal | undefined;
+    if (minDeviation !== undefined && minDeviation !== null) {
+      const numeric = typeof minDeviation === 'string' ? Number(minDeviation) : minDeviation;
+      if (Number.isNaN(numeric)) {
+        return NextResponse.json(
+          { error: 'minDeviation must be a number' },
+          { status: 400 }
+        );
+      }
+      if (numeric < 0) {
+        return NextResponse.json(
+          { error: 'minDeviation must be >= 0' },
+          { status: 400 }
+        );
+      }
+      minDeviationDecimal = new Prisma.Decimal(numeric);
     }
     
     // Update the page
@@ -105,6 +125,7 @@ export async function PUT(
       data: {
         ...(name && { name }),
         ...(path && { path }),
+        ...(minDeviationDecimal !== undefined && { minDeviation: minDeviationDecimal }),
       },
     });
     

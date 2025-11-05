@@ -11,6 +11,7 @@ export default function NewWebsite() {
   const [formData, setFormData] = useState({
     name: '',
     url: '',
+    minDeviation: 0,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -26,11 +27,11 @@ export default function NewWebsite() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Website name is required';
     }
-    
+
     if (!formData.url.trim()) {
       newErrors.url = 'URL is required';
     } else {
@@ -41,18 +42,18 @@ export default function NewWebsite() {
         newErrors.url = 'Please enter a valid URL (e.g., https://example.com)';
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       const response = await fetch('/api/websites', {
         method: 'POST',
@@ -61,19 +62,19 @@ export default function NewWebsite() {
         },
         body: JSON.stringify(formData),
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create website');
       }
-      
+
       router.push(`/dashboard/websites/${data.id}`);
     } catch (error) {
       console.error('Error creating website:', error);
-      setErrors((prev) => ({ 
-        ...prev, 
-        form: error instanceof Error ? error.message : 'Failed to create website' 
+      setErrors((prev) => ({
+        ...prev,
+        form: error instanceof Error ? error.message : 'Failed to create website'
       }));
     } finally {
       setIsLoading(false);
@@ -105,7 +106,7 @@ export default function NewWebsite() {
                     <div className="text-sm text-red-700">{errors.form}</div>
                   </div>
                 )}
-                
+
                 <div className="space-y-6">
                   <div>
                     <label htmlFor="name" className="block text-sm font-medium text-gray-700">
@@ -123,7 +124,7 @@ export default function NewWebsite() {
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="url" className="block text-sm font-medium text-gray-700">
                       Website URL
@@ -143,7 +144,23 @@ export default function NewWebsite() {
                       Include the full URL with http:// or https://
                     </p>
                   </div>
-                  
+                  <div>
+                    <label htmlFor="url" className="block text-sm font-medium text-gray-700">
+                      Minimal deviation to trigger a notification
+                    </label>
+                    <div className="mt-1">
+                      <Input
+                        id="minDeviation"
+                        name="minDeviation"
+                        type="text"
+                        value={formData.minDeviation}
+                        onChange={handleChange}
+                        error={errors.minDeviation}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex justify-end">
                     <Link href="/dashboard">
                       <Button type="button" variant="outline" className="mr-3">

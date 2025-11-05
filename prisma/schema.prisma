@@ -31,18 +31,19 @@ model Website {
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   invitations WebsiteInvitation[]
   shares      WebsiteShare[]
-  authToken String?
+  authToken   String?
 }
 
 model Page {
-  id          String       @id @default(cuid())
-  name        String
-  path        String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  websiteId   String
-  comparisons Comparison[]
-  website     Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  id           String       @id @default(cuid())
+  name         String
+  path         String
+  minDeviation Decimal      @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  websiteId    String
+  comparisons  Comparison[]
+  website      Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 }
 
 model Comparison {

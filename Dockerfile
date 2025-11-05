@@ -22,6 +22,8 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
+# Ensure no conflicting folder exists inside public before build
+RUN rm -rf ./public/_next || true
 # Build the application
 RUN npm run build
 
@@ -59,8 +61,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Create screenshots directory with proper permissions
-RUN mkdir -p /app/public/screenshots
-RUN chown nextjs:nodejs /app/public/screenshots
+RUN mkdir -p /app/public/screenshots && \
+    chown -R nextjs:nodejs /app/public/screenshots && \
+    chmod -R 777 /app/public/screenshots
 
 USER nextjs
 

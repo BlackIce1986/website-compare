@@ -14,6 +14,7 @@ services:
     volumes:
       - app_public:/app/public
       - app_next_static:/app/.next/static
+      - ./public/screenshots:/app/public/screenshots:rw
       # - ./prisma:/app/prisma
     depends_on:
       - website-compare-db
@@ -43,6 +44,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl
       - app_public:/var/www/html
       - app_next_static:/var/www/html/_next/static
+      - ./public/screenshots:/var/www/html/screenshots:rw
     depends_on:
       - website-compare-app
     networks:

@@ -19,23 +19,12 @@ export async function POST(
     }
 
     const authToken = body?.authToken ?? '';
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-    
     const { id: websiteId } = await params;
-    
-    // // Verify website access
-    // const hasAccess = await verifyWebsiteAccess(websiteId, session.user.id);
-    // if (!hasAccess) {
-    //   return NextResponse.json({ error: 'Website not found' }, { status: 404 });
-    // }
     const websiteAuthToken = (await prisma.website.findFirst({
       where: {
         id: websiteId
       }
     }))?.authToken;
-    console.log(websiteId, websiteAuthToken, authToken);
     if (websiteAuthToken !== authToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -57,10 +46,6 @@ export async function POST(
       }, { status: 404 });
     }
     
-    // Create comparisons for all pages
-    const results = [];
-    const errors = [];
-    
     // Get website details for email notifications
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
@@ -75,7 +60,10 @@ export async function POST(
     
     //run code async in separate process and return json response before finishing
     (async () => {
+      const results = [];
+      const errors = [];
       for (const page of pages) {
+        console.log('getting pages', page);
         try {
           const result = await createComparison(page.id);
           results.push({
@@ -96,9 +84,10 @@ export async function POST(
           });
         }
       }
-
+      console.log('results', results);
       // Send bulk failure notification if there were any errors
       if (errors.length > 0 && website) {
+        console.log('Got errors', errors);
         try {
           // Collect recipients (website owner + users with edit permission)
           const recipients: EmailRecipient[] = [];

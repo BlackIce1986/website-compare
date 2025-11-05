@@ -1,15 +1,85 @@
 import puppeteer from 'puppeteer';
-import fs from 'fs';
-import path from 'path';
-import { createHash } from 'crypto';
+import type { Page } from 'puppeteer';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import process from 'node:process';
 import { prisma } from './prisma';
 import { ComparisonStatus } from './types';
 import { emailService } from './email-service';
 
-// Ensure screenshots directory exists
-const SCREENSHOTS_DIR = path.join(process.cwd(), 'public', 'screenshots');
-if (!fs.existsSync(SCREENSHOTS_DIR)) {
-  fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+// Base screenshots directory (override via env SCREENSHOTS_DIR, default to public/screenshots)
+const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR
+  ? path.resolve(process.env.SCREENSHOTS_DIR)
+  : path.join(process.cwd(), 'public', 'screenshots');
+
+// Ensure a directory exists and is writable; try to relax permissions if needed
+const ensureDirWritable = (dir: string): void => {
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
+    }
+  } catch (e) {
+    // Bubble up directory creation errors
+    throw e;
+  }
+  try {
+    fs.accessSync(dir, fs.constants.W_OK);
+  } catch (_) {
+    try {
+      fs.chmodSync(dir, 0o777);
+      fs.accessSync(dir, fs.constants.W_OK);
+    } catch (err) {
+      const msg = `Screenshots directory not writable: ${dir}. If running in Docker, ensure the mapped volume ownership/permissions allow writes (e.g., chown to the app user or relax to 0777 for development).`;
+      const error = new Error(msg);
+      // Attach original error for context
+      (error as any).cause = err;
+      throw error;
+    }
+  }
+};
+
+// Ensure base screenshots directory exists and is writable
+ensureDirWritable(SCREENSHOTS_DIR);
+
+// Simple retry helper for flaky operations (e.g., newPage, goto)
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 2,
+  delayMs = 2000
+): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (i === attempts) break;
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
+// Resolve a usable Chromium executable path inside Docker/Alpine
+function resolveChromiumPath(): string | undefined {
+  const candidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chrome',
+  ].filter(Boolean) as string[];
+  for (const p of candidates) {
+    try {
+      fs.accessSync(p, fs.constants.X_OK);
+      return p;
+    } catch (_) {
+      // continue
+    }
+  }
+  return undefined;
 }
 
 // Generate month-year folder name (e.g., 'jan-2024')
@@ -24,9 +94,7 @@ const generateMonthYearFolder = (date: Date = new Date()): string => {
 // Ensure month-year subfolder exists
 const ensureMonthYearFolder = (monthYear: string): string => {
   const monthYearDir = path.join(SCREENSHOTS_DIR, monthYear);
-  if (!fs.existsSync(monthYearDir)) {
-    fs.mkdirSync(monthYearDir, { recursive: true });
-  }
+  ensureDirWritable(monthYearDir);
   return monthYearDir;
 };
 
@@ -39,19 +107,37 @@ const generateFilename = (url: string): string => {
 
 // Take a screenshot of a webpage
 export async function takeScreenshot(url: string): Promise<string> {
+  const executablePath = resolveChromiumPath();
   const browser = await puppeteer.launch({
-    headless: true, // Use boolean instead of 'new'
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    headless: true,
+    executablePath,
+    userDataDir: '/tmp/puppeteer',
+    // Increase protocol timeout to avoid Network.enable timeouts in containers
+    protocolTimeout: 120_000,
+    timeout: 90_000,
+    // Docker/Alpine-friendly flags (avoid single-process/no-zygote which can cause crashes)
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
   });
   
   try {
-    const page = await browser.newPage();
+    const page: Page = await withRetry<Page>(() => browser.newPage(), 2, 3000);
+    page.setDefaultNavigationTimeout(120_000);
+    page.setDefaultTimeout(120_000);
     
     // Set viewport size for consistent screenshots
     await page.setViewport({ width: 1280, height: 800 });
     
     // Navigate to the URL
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await withRetry(
+      () => page.goto(url, { waitUntil: 'networkidle2', timeout: 90_000 }),
+      1,
+      2000
+    );
     
     // Generate month-year folder and ensure it exists
     const monthYear = generateMonthYearFolder();
@@ -62,9 +148,9 @@ export async function takeScreenshot(url: string): Promise<string> {
     const screenshotPath = path.join(monthYearDir, filename);
     
     // Take screenshot with fixed dimensions for consistent comparison
-    await page.screenshot({ 
-      path: screenshotPath as `${string}.png`, 
-      fullPage: true // Take screenshot of the entire page
+    await page.screenshot({
+      path: screenshotPath as `${string}.png`,
+      fullPage: true
     });
     // Return the relative path for storage in the database
     return `/screenshots/${monthYear}/${filename}`;
@@ -85,8 +171,10 @@ export async function compareScreenshots(
   const { PNG } = await import('pngjs');
   
   // Read the images
-  const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
-  const currentPath = path.join(process.cwd(), 'public', currentScreenshot);
+  const baselineRel = baselineScreenshot.replace(/^\/+/, '');
+  const currentRel = currentScreenshot.replace(/^\/+/, '');
+  const baselinePath = path.resolve(process.cwd(), 'public', baselineRel);
+  const currentPath = path.resolve(process.cwd(), 'public', currentRel);
   
   // Check if files exist before reading
   if (!fs.existsSync(baselinePath)) {

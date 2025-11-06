@@ -95,6 +95,7 @@ export async function POST(
               pagePath: page.path,
               success: true,
               comparison: result,
+              error: 'Deviation below threshold. No comparison created. ' + result.diffPercentage + '%',
             });
           }
         } catch (error) {
@@ -142,7 +143,7 @@ export async function POST(
               failedPages: errors.map(error => ({
                 pageName: error.pageName,
                 pagePath: error.pagePath,
-                errorMessage: error.error
+                errorMessage: error.error ?? ''
               })),
               successfulPages: results.length,
               timestamp: new Date()

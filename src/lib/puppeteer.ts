@@ -243,13 +243,29 @@ export async function createComparison(pageId: string): Promise<any> {
       // Compare with the previous baseline
       const previousComparison = previousComparisons[0];
 
-      // Check if baseline screenshot has different dimensions (from old fullPage screenshots)
-      // If so, retake the baseline with new dimensions
       let baselineScreenshot = previousComparison.baselineScreenshot!;
+      //Test for file. If not - create new baseline screenshot.
+      const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
+      if (!fs.existsSync(baselinePath)) {
+        await prisma.comparison.update({
+          where: { id: comparison.id },
+          data: {
+            baselineScreenshot: screenshotPath,
+            currentScreenshot: screenshotPath,
+            status: ComparisonStatus.COMPLETED,
+          },
+        });
+
+        return {
+          id: comparison.id,
+          status: ComparisonStatus.COMPLETED,
+          isFirstComparison: true,
+        };
+      }
 
       try {
         // Try to read the baseline image to check its dimensions
-        const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
+        //const baselinePath = path.join(process.cwd(), 'public', baselineScreenshot);
         if (fs.existsSync(baselinePath)) {
           const { PNG } = await import('pngjs');
           const baselineData = fs.readFileSync(baselinePath);
@@ -271,6 +287,8 @@ export async function createComparison(pageId: string): Promise<any> {
               data: { baselineScreenshot },
             });
           }
+        } else {
+          console.log(`Baseline screenshot not found: ${baselinePath}`);
         }
       } catch (error) {
         console.log('Error checking baseline dimensions, retaking screenshot:', error);

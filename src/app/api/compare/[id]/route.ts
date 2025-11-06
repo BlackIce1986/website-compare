@@ -79,7 +79,7 @@ export async function POST(
         try {
           const result = await createComparison(page.id);
           console.log(result, page);
-          if (parseFloat(result.diffPercentage as string) > parseFloat(page.minDeviation as string)) {
+          if (parseFloat(result.diffPercentage as unknown as string) > parseFloat(page.minDeviation as unknown as string)) {
             console.log(`Page ${page.id} failed. Result: ${result}, minDeviation: ${page.minDeviation}`);
             errors.push({
               pageId: page.id,

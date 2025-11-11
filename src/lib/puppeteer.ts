@@ -54,6 +54,9 @@ export async function takeScreenshot(url: string): Promise<string> {
     // Navigate to the URL
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
+    //Wait for 5 seconds for page to render
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     // Generate month-year folder and ensure it exists
     const monthYear = generateMonthYearFolder();
     const monthYearDir = ensureMonthYearFolder(monthYear);

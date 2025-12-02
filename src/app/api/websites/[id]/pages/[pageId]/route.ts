@@ -88,10 +88,10 @@ export async function PUT(
     }
     
     // Get request body
-    const { name, path, minDeviation } = await request.json();
+    const { name, path, minDeviation, preScreenshotEvents } = await request.json();
     
     // Validate input
-    if (!name && !path && (minDeviation === undefined || minDeviation === null)) {
+    if (!name && !path && (minDeviation === undefined || minDeviation === null) && typeof preScreenshotEvents === 'undefined') {
       return NextResponse.json(
         { error: 'At least one field to update is required' },
         { status: 400 }
@@ -116,6 +116,73 @@ export async function PUT(
       }
       minDeviationDecimal = new Prisma.Decimal(numeric);
     }
+
+    // Validate preScreenshotEvents if provided (must be an array of event objects)
+    let eventsJson: Prisma.JsonValue | undefined;
+    const allowedEventTypes = new Set(['hover', 'click', 'waitForSelector', 'waitForTimeout', 'type', 'remove']);
+    if (typeof preScreenshotEvents !== 'undefined') {
+      if (!Array.isArray(preScreenshotEvents)) {
+        return NextResponse.json(
+          { error: 'preScreenshotEvents must be an array' },
+          { status: 400 }
+        );
+      }
+      // Basic shape validation
+      for (const evt of preScreenshotEvents) {
+        const ev: any = evt;
+        if (!ev || typeof ev !== 'object' || typeof ev.type !== 'string') {
+          return NextResponse.json(
+            { error: 'Each event must be an object with a type' },
+            { status: 400 }
+          );
+        }
+        if (!allowedEventTypes.has(ev.type)) {
+          return NextResponse.json(
+            { error: `Unsupported event type: ${ev.type}` },
+            { status: 400 }
+          );
+        }
+        // Index must be a non-negative integer if provided
+        if (ev.index !== undefined) {
+          if (typeof ev.index !== 'number' || ev.index < 0 || !Number.isInteger(ev.index)) {
+            return NextResponse.json(
+              { error: 'index must be a non-negative integer when provided' },
+              { status: 400 }
+            );
+          }
+        }
+        // For selector-based events, ensure selector is a string
+        if (['hover', 'click', 'type', 'waitForSelector', 'remove'].includes(ev.type)) {
+          if (typeof ev.selector !== 'string' || ev.selector.trim().length === 0) {
+            return NextResponse.json(
+              { error: `${ev.type} events require a non-empty selector` },
+              { status: 400 }
+            );
+          }
+          // Optional: basic guard that remove uses id or class selectors
+          if (ev.type === 'remove') {
+            const sel = ev.selector.trim();
+            const idOrClass = sel.startsWith('#') || sel.startsWith('.');
+            if (!idOrClass) {
+              return NextResponse.json(
+                { error: 'remove requires an id (#id) or class (.class) selector' },
+                { status: 400 }
+              );
+            }
+          }
+        }
+        // For waitForTimeout, ensure ms is a number
+        if (ev.type === 'waitForTimeout') {
+          if (typeof ev.ms !== 'number' || ev.ms < 0) {
+            return NextResponse.json(
+              { error: 'waitForTimeout requires a non-negative ms value' },
+              { status: 400 }
+            );
+          }
+        }
+      }
+      eventsJson = preScreenshotEvents as Prisma.JsonValue;
+    }
     
     // Update the page
     const updatedPage = await prisma.page.update({
@@ -126,6 +193,7 @@ export async function PUT(
         ...(name && { name }),
         ...(path && { path }),
         ...(minDeviationDecimal !== undefined && { minDeviation: minDeviationDecimal }),
+        ...(typeof eventsJson !== 'undefined' && { preScreenshotEvents: eventsJson }),
       },
     });
     

@@ -13,7 +13,7 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@website-compare-db:5432/website_compare_dev
       - NEXTAUTH_SECRET=development_secret_key
-      - NEXTAUTH_URL=http://website-compare.test:3001
+      - NEXTAUTH_URL=http://website-compare.test:3131
     command: sh -c "npm install --legacy-peer-deps && npm run dev"
     depends_on:
       - website-compare-db
@@ -26,7 +26,7 @@ services:
   website-compare-db:
     image: postgres:15-alpine
     ports:
-      - "5432:5432"
+      - "6543:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -37,21 +37,21 @@ services:
       - website-compare-network
       - shared-network
 
-  nginx:
-    image: nginx:alpine
-    restart: always
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./public:/var/www/html
-      - ./.next/static:/var/www/html/_next/static
-    depends_on:
-      - website-compare-app
-    networks:
-      - website-compare-network
-      - shared-network
+#   nginx:
+#     image: nginx:alpine
+#     restart: always
+#     ports:
+#       - "80:80"
+#     volumes:
+#       - ./nginx/conf.d:/etc/nginx/conf.d
+#       - ./nginx/ssl:/etc/nginx/ssl
+#       - ./public:/var/www/html
+#       - ./.next/static:/var/www/html/_next/static
+#     depends_on:
+#       - website-compare-app
+#     networks:
+#       - website-compare-network
+#       - shared-network
 networks:
   website-compare-network:
     driver: bridge

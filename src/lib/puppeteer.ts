@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Page } from 'puppeteer';
+import type { ElementHandle } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
@@ -15,7 +16,7 @@ if (!fs.existsSync(SCREENSHOTS_DIR)) {
 // Generate month-year folder name (e.g., 'jan-2024')
 const generateMonthYearFolder = (date: Date = new Date()): string => {
   const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
-                  'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   const month = months[date.getMonth()];
   const year = date.getFullYear();
   return `${month}-${year}`;
@@ -52,10 +53,10 @@ export async function takeScreenshot(url: string): Promise<string> {
     await page.setViewport({ width: 1280, height: 800 });
 
     // Navigate to the URL
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 10000 });
 
-    //Wait for 5 seconds for page to render
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    //Wait briefly for page to render
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Generate month-year folder and ensure it exists
     const monthYear = generateMonthYearFolder();
@@ -65,10 +66,16 @@ export async function takeScreenshot(url: string): Promise<string> {
     const filename = generateFilename(url);
     const screenshotPath = path.join(monthYearDir, filename);
 
+    // Get the full height of the page
+    const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+
+    // Set viewport to full height to avoid scrolling during screenshot
+    await page.setViewport({ width: 1280, height: bodyHeight });
+    await new Promise(resolve => setTimeout(resolve, 1000));
     // Take screenshot with fixed dimensions for consistent comparison
     await page.screenshot({
       path: screenshotPath as `${string}.png`,
-      fullPage: true // Take screenshot of the entire page
+      // fullPage: true // Disabled to prevent scroll events
     });
     // Return the relative path for storage in the database
     return `/screenshots/${monthYear}/${filename}`;
@@ -212,8 +219,13 @@ export async function createComparison(pageId: string): Promise<any> {
       },
     });
 
-    // Take a screenshot
-    const screenshotPath = await takeScreenshot(url);
+    // Prepare page actions before screenshot
+    const events = Array.isArray((page as any).preScreenshotEvents)
+      ? ((page as any).preScreenshotEvents as Array<any>)
+      : undefined;
+
+    // Take a screenshot (with events if provided)
+    const screenshotPath = await takeScreenshotWithEvents(url, events);
 
     // Check if this is the first comparison for this page
     const previousComparisons = await prisma.comparison.findMany({
@@ -365,7 +377,7 @@ export async function createComparison(pageId: string): Promise<any> {
             }
 
             // Add users with edit permission
-            page.website.shares.forEach((share: { user: { email: string; name: string | null } })  => {
+            page.website.shares.forEach((share: { user: { email: string; name: string | null } }) => {
               if (share.user.email) {
                 recipients.push({
                   email: share.user.email,
@@ -375,17 +387,17 @@ export async function createComparison(pageId: string): Promise<any> {
             });
 
             if (recipients.length > 0) {
-               const fullUrl = new URL(page.path, page.website.url).toString();
-               await emailService.sendComparisonFailureNotification(recipients, {
-                 pageName: page.name,
-                 pagePath: page.path,
-                 pageUrl: fullUrl,
-                 websiteName: page.website.name,
-                 websiteUrl: page.website.url,
-                 errorMessage: error instanceof Error ? error.message : 'Unknown error',
-                 timestamp: new Date()
-               });
-             }
+              const fullUrl = new URL(page.path, page.website.url).toString();
+              await emailService.sendComparisonFailureNotification(recipients, {
+                pageName: page.name,
+                pagePath: page.path,
+                pageUrl: fullUrl,
+                websiteName: page.website.name,
+                websiteUrl: page.website.url,
+                errorMessage: error instanceof Error ? error.message : 'Unknown error',
+                timestamp: new Date()
+              });
+            }
           }
         } catch (emailError) {
           console.error('Error sending failure notification email:', emailError);
@@ -397,5 +409,130 @@ export async function createComparison(pageId: string): Promise<any> {
     }
 
     throw error;
+  }
+}
+
+// Supported pre-screenshot event types
+type PreScreenshotEvent =
+  | { type: 'hover'; selector: string; timeout?: number; index?: number }
+  | { type: 'click'; selector: string; timeout?: number; index?: number }
+  | { type: 'waitForSelector'; selector: string; timeout?: number; index?: number }
+  | { type: 'waitForTimeout'; ms: number }
+  | { type: 'type'; selector: string; text: string; delay?: number; timeout?: number; index?: number }
+  | { type: 'remove'; selector: string; timeout?: number; index?: number };
+
+async function getElementHandleByIndex(page: Page, selector: string, index?: number): Promise<ElementHandle<Element> | null> {
+  const handles = await page.$$(selector);
+  const i = typeof index === 'number' && index >= 0 && Number.isInteger(index) ? index : 0;
+  return handles[i] ?? null;
+}
+
+// Execute a sequence of events on a Puppeteer page
+async function executePreScreenshotEvents(page: Page, events: PreScreenshotEvent[] = []) {
+  for (const evt of events) {
+    try {
+      switch (evt.type) {
+        case 'hover': {
+          if (!evt.selector) break;
+          await page.waitForSelector(evt.selector, { timeout: evt.timeout ?? 10000 });
+          const el = await getElementHandleByIndex(page, evt.selector, evt.index);
+          if (!el) break;
+          const box = await el.boundingBox();
+          if (box) {
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          }
+          break;
+        }
+        case 'click': {
+          if (!evt.selector) break;
+          await page.waitForSelector(evt.selector, { timeout: evt.timeout ?? 10000 });
+          const el = await getElementHandleByIndex(page, evt.selector, evt.index);
+          if (!el) break;
+          await el.click();
+          break;
+        }
+        case 'waitForSelector': {
+          if (!evt.selector) break;
+          await page.waitForSelector(evt.selector, { timeout: evt.timeout ?? 10000 });
+          break;
+        }
+        case 'waitForTimeout': {
+          const ms = Math.max(0, evt.ms || 0);
+          await new Promise((resolve) => setTimeout(resolve, ms));
+          break;
+        }
+        case 'type': {
+          if (!evt.selector) break;
+          await page.waitForSelector(evt.selector, { timeout: evt.timeout ?? 10000 });
+          const el = await getElementHandleByIndex(page, evt.selector, evt.index);
+          if (!el) break;
+          // Focus then type via keyboard to avoid selector ambiguity
+          // @ts-ignore - ElementHandle has focus in Puppeteer
+          await el.focus?.();
+          await page.keyboard.type(evt.text || '', { delay: evt.delay ?? 0 });
+          break;
+        }
+        case 'remove': {
+          if (!evt.selector) break;
+          await page.waitForSelector(evt.selector, { timeout: evt.timeout ?? 10000 });
+          if (typeof evt.index === 'number' && evt.index >= 0 && Number.isInteger(evt.index)) {
+            const el = await getElementHandleByIndex(page, evt.selector, evt.index);
+            if (!el) break;
+            await page.evaluate((node: Element) => node.remove(), el);
+          } else {
+            const handles = await page.$$(evt.selector);
+            if (handles.length === 0) break;
+            // Default: remove the first match
+            const first = handles[0];
+            await page.evaluate((node: Element) => node.remove(), first);
+          }
+          break;
+        }
+        default:
+          // Ignore unsupported event types gracefully
+          break;
+      }
+    } catch (e) {
+      // Log and continue to avoid failing whole comparison on one event
+      console.warn('Pre-screenshot event failed:', evt, e);
+    }
+  }
+}
+
+// Take screenshot with optional pre-screenshot events
+export async function takeScreenshotWithEvents(url: string, events?: PreScreenshotEvent[]): Promise<string> {
+  const browser = await puppeteer.launch({
+    protocolTimeout: 160000,
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--headless'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 10000 });
+
+    // Execute events if provided
+    if (events && events.length > 0) {
+      await executePreScreenshotEvents(page, events);
+    }
+
+    // Small settle time post-events
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const monthYear = generateMonthYearFolder();
+    const monthYearDir = ensureMonthYearFolder(monthYear);
+    const filename = generateFilename(url);
+    const screenshotPath = path.join(monthYearDir, filename);
+
+    // Capture current viewport-sized screenshot
+    await page.screenshot({ path: screenshotPath as `${string}.png` });
+
+    return `/screenshots/${monthYear}/${filename}`;
+  } catch (error) {
+    console.error('Error taking screenshot with events:', error);
+    throw error;
+  } finally {
+    await browser.close();
   }
 }

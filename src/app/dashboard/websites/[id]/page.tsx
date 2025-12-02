@@ -20,6 +20,7 @@ interface Page {
   name: string;
   path: string;
   minDeviation?: number;
+  preScreenshotEvents?: any[];
   websiteId: string;
   createdAt: string;
 }
@@ -43,6 +44,7 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
   const [editName, setEditName] = useState('');
   const [editPath, setEditPath] = useState('');
   const [editMinDeviation, setEditMinDeviation] = useState<string>('0');
+  const [editEventsJson, setEditEventsJson] = useState<string>('');
   const [updating, setUpdating] = useState(false);
 
   // Share modal state
@@ -135,6 +137,7 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
         ? String(page.minDeviation)
         : '0'
     );
+    setEditEventsJson(page.preScreenshotEvents ? JSON.stringify(page.preScreenshotEvents, null, 2) : '');
     setFormError(null);
   };
 
@@ -143,6 +146,7 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
     setEditName('');
     setEditPath('');
     setEditMinDeviation('0');
+    setEditEventsJson('');
     setFormError(null);
   };
 
@@ -156,6 +160,18 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
       if (editName) payload.name = editName;
       if (editPath) payload.path = editPath;
       if (editMinDeviation !== '') payload.minDeviation = Number(editMinDeviation);
+
+      // Parse events JSON if provided
+      if (editEventsJson.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(editEventsJson);
+          payload.preScreenshotEvents = parsed;
+        } catch (jsonErr: any) {
+          throw new Error('Invalid events JSON: ' + (jsonErr.message || 'Could not parse'));
+        }
+      } else {
+        payload.preScreenshotEvents = [];
+      }
 
       const res = await fetch(`/api/websites/${resolvedParams.id}/pages/${editingPageId}`, {
         method: 'PUT',
@@ -315,6 +331,9 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
                       {typeof page.minDeviation !== 'undefined' && (
                         <p className="text-xs text-gray-400">Min deviation: {String(page.minDeviation)}</p>
                       )}
+                      {page.preScreenshotEvents && page.preScreenshotEvents.length > 0 && (
+                        <p className="text-xs text-gray-400">Events: {page.preScreenshotEvents.length} configured</p>
+                      )}
                     </div>
                     <div className="flex space-x-2">
                       <Link href={`/dashboard/websites/${resolvedParams.id}/pages/${page.id}`}>
@@ -379,6 +398,21 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
                           />
                           <p className="text-sm text-gray-500 mt-1">
                             Differences below this percentage are considered insignificant.
+                          </p>
+                        </div>
+                        <div>
+                          <label htmlFor="edit-events" className="block text-sm font-medium text-gray-700 mb-1">
+                            Pre-screenshot Events (JSON)
+                          </label>
+                          <textarea
+                            id="edit-events"
+                            value={editEventsJson}
+                            onChange={(e) => setEditEventsJson(e.target.value)}
+                            placeholder='e.g., [\n  { "type": "hover", "selector": ".menu", "index": 1 },\n  { "type": "remove", "selector": "#banner" },\n  { "type": "click", "selector": "#buy" },\n  { "type": "type", "selector": "#search", "text": "laptops" },\n  { "type": "waitForTimeout", "ms": 500 }\n]'
+                            className="w-full border border-gray-300 rounded p-2 font-mono text-sm h-40"
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            Supported: hover, click, waitForSelector, waitForTimeout, type, remove. Add <code>index</code> to target the nth match (default 0). For <code>remove</code>, use an id (<code>#id</code>) or class (<code>.class</code>).
                           </p>
                         </div>
                         {formError && (

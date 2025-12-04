@@ -15,6 +15,7 @@ services:
     volumes:
       - ./public/screenshots:/app/public/screenshots:rw
       # - ./prisma:/app/prisma
+    command: sh -c "npx prisma migrate deploy"
     depends_on:
       - website-compare-db
     networks:

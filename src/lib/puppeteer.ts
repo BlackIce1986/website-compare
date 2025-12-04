@@ -512,11 +512,16 @@ export async function takeScreenshotWithEvents(url: string, events?: PreScreensh
     await page.setViewport({ width: 1280, height: 800 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 10000 });
 
+    // Get the full height of the page
+    const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+
+    // Set viewport to full height to avoid scrolling during screenshot
+    await page.setViewport({ width: 1280, height: bodyHeight });
+    await new Promise(resolve => setTimeout(resolve, 1000));
     // Execute events if provided
     if (events && events.length > 0) {
       await executePreScreenshotEvents(page, events);
     }
-
     // Small settle time post-events
     await new Promise((resolve) => setTimeout(resolve, 500));
 

@@ -22,6 +22,7 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
+RUN npx prisma migrate deploy
 # Ensure no conflicting folder exists inside public before build
 RUN rm -rf ./public/_next || true
 # Build the application
